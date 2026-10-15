@@ -45,9 +45,25 @@ def dagger_windows(planner, logs, idx, expert=None):
     """Let `planner` drive the training logs in closed loop, record the states it visits, and label each one with what
     the expert rule would do there (its 3 s speed forecast). Returns (X_perc, Y). Training on these teaches the
     planner to recover from its own small errors instead of only imitating states the human visited."""
-    # TODO (Bước 7): hãy tự cài hàm này. Gợi ý:
-    #   (1) rec = []; sim.rollout_logs(planner, logs, idx, record=rec). (2) Mỗi phần tử của rec là
-    #   (hist_rel, v, gap, lead_v) của các hàng còn đang lái: np.concatenate theo từng thành phần. (3) X =
-    #   features('perc', hist_rel, v, gap, lead_v). (4) Y = idm_forecast(expert, v, gap, lead_v): nhãn là
-    #   việc luật IDM sẽ làm Ở CHÍNH các trạng thái đó. Trả (X, Y).
-    raise NotImplementedError("TODO dagger_windows: xem GUIDE.md, Bước 7")
+    from . import sim
+    from .planners import IDM, idm_forecast
+
+    expert = expert or IDM()
+
+    # (1) Ghi nhận lại các trạng thái mà planner tự đi vào
+    rec = []
+    sim.rollout_logs(planner, logs, idx, record=rec)
+
+    # (2) Nối các phần tử của rec theo trục 0
+    hist_rel = np.concatenate([r[0] for r in rec], axis=0)
+    v        = np.concatenate([r[1] for r in rec], axis=0)
+    gap      = np.concatenate([r[2] for r in rec], axis=0)
+    lead_v   = np.concatenate([r[3] for r in rec], axis=0)
+
+    # (3) Tạo ma trận đặc trưng đầu vào
+    X = features("perc", hist_rel, v, gap, lead_v)
+
+    # (4) Tạo nhãn tương lai bằng dự báo 3 giây của chuyên gia IDM
+    Y = idm_forecast(expert, v, gap, lead_v)
+
+    return (X, Y)
